@@ -20,6 +20,16 @@ exports.createTask = async (req, res) => {
 
 exports.getTasks = async (req, res) => {
     try {
+        const project = await require('../models/Project').findById(req.params.projectId);
+        if (!project) return res.status(404).json({ message: 'Project not found' });
+
+        // Check if user has access to this project
+        if (req.user.role !== 'Admin' && 
+            project.owner.toString() !== req.user._id.toString() && 
+            !project.members.includes(req.user._id)) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
         const tasks = await Task.find({ project: req.params.projectId })
             .populate('assignedTo', 'name email')
             .populate('project', 'title');

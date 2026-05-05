@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { getProjects, createProject, deleteProject } from '../services/api';
+import { getProjects, createProject, deleteProject, getUsers } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Plus, X, LayoutGrid, Info } from 'lucide-react';
+import { Plus, X, LayoutGrid, Info, Users, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProjectCard from '../components/ProjectCard';
 
 const Projects = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [newProject, setNewProject] = useState({ title: '', description: '' });
+  const [newProject, setNewProject] = useState({ title: '', description: '', members: [] });
 
   const fetchProjects = async () => {
     try {
@@ -23,15 +24,27 @@ const Projects = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const { data } = await getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error fetching users', error);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
-  }, []);
+    if (user?.role === 'Admin') {
+      fetchUsers();
+    }
+  }, [user]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
       await createProject(newProject);
-      setNewProject({ title: '', description: '' });
+      setNewProject({ title: '', description: '', members: [] });
       setShowModal(false);
       fetchProjects();
     } catch (error) {
@@ -177,11 +190,58 @@ const Projects = () => {
                     onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
                   />
                 </div>
+
+                {/* Member Selection */}
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-slate-400 ml-1 flex items-center gap-2">
+                    <Users size={16} />
+                    Team Members
+                  </label>
+                  <div className="max-h-48 overflow-y-auto space-y-2 p-4 rounded-xl bg-slate-800/50 border border-white/5">
+                    {users.filter(u => u._id !== user._id).map((member) => (
+                      <label key={member._id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={newProject.members.includes(member._id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewProject({
+                                ...newProject,
+                                members: [...newProject.members, member._id]
+                              });
+                            } else {
+                              setNewProject({
+                                ...newProject,
+                                members: newProject.members.filter(id => id !== member._id)
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-indigo-600 bg-slate-700 border-slate-600 rounded focus:ring-indigo-500 focus:ring-2"
+                        />
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                            <UserCheck size={14} className="text-indigo-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium text-sm">{member.name}</p>
+                            <p className="text-slate-400 text-xs">{member.email}</p>
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                    {users.filter(u => u._id !== user._id).length === 0 && (
+                      <p className="text-slate-500 text-sm text-center py-4">No team members available</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 ml-1">
+                    Selected: {newProject.members.length} member{newProject.members.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
                 
                 <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10 flex items-start gap-4">
                    <Info size={20} className="text-indigo-400 mt-0.5 shrink-0" />
                    <p className="text-xs text-slate-400 leading-relaxed">
-                     As an administrator, you will be the owner of this workspace. You can invite team members and assign tasks after creation.
+                     As an administrator, you will be the owner of this workspace. Selected team members will have access to view and work on this project.
                    </p>
                 </div>
 
